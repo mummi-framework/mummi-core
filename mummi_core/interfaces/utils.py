@@ -19,10 +19,11 @@ def move_to(keys_path: str, keys: List[str], out_path: str):
 
     process_name: str = mp.current_process().name
     LOGGER.debug(f'{process_name}: is moving {len(keys)} keys from ({keys_path}) to ({out_path})')
+    os.makedirs(out_path, exist_ok=True)
 
     for key in keys:
         try:
-            os.rename(os.path.join(keys_path, key+'.npz'),  os.path.join(out_path, key+'.npz'))
+            os.rename(os.path.join(keys_path, key),  os.path.join(out_path, key))
         except Exception as _expt:
             LOGGER.error(f'Failed to move ({key}): {_expt}')
 
@@ -39,11 +40,11 @@ def tar_and_remove(tar_path: str, tar_name: str, keys_path: str,
     assert len(data) == len(keys)
     assert callable(writer_func)
 
-    filename: str = os.path.join(tar_path, f'{tar_name}.{proc.name}.tar')
-    # keys = [_ + '.npz' for _ in keys] #HB: removed on Jul 08, 2021
+    process_name: str = mp.current_process().name
+    filename: str = os.path.join(tar_path, f'{tar_name}.{process_name}.tar')
 
     # tar the data
-    LOGGER.debug(f'{proc.name}: is tarring {len(keys)} keys into ({filename})')
+    LOGGER.debug(f'{process_name}: is tarring {len(keys)} keys into ({filename})')
     try:
         mummi_core.get_io('taridx').save_npz(filename, keys, data, writer_func)
     except Exception as _expt:
@@ -51,7 +52,7 @@ def tar_and_remove(tar_path: str, tar_name: str, keys_path: str,
         return
 
     # remove npz files
-    LOGGER.debug(f'{proc.name}: is removing {len(keys)} keys from ({keys_path})')
+    LOGGER.debug(f'{process_name}: is removing {len(keys)} keys from ({keys_path})')
     for key in keys:
         npz_path = os.path.join(keys_path, key)
         try:
@@ -59,11 +60,12 @@ def tar_and_remove(tar_path: str, tar_name: str, keys_path: str,
         except Exception as _expt:
             LOGGER.error(f'Failed to remove ({npz_path}): {_expt}')
 
-    LOGGER.debug(f'{proc.name}: removed {len(keys)} keys from ({keys_path})')
+    LOGGER.debug(f'{process_name}: removed {len(keys)} keys from ({keys_path})')
 
 
 # ------------------------------------------------------------------------------
-def convert_interface_type(from_interface, to_interface, namespace, keypattern, max_keys=1000000):
+def convert_interface_type(from_interface, to_interface, namespace, keypattern,
+                           max_keys=1000000):
     LOGGER.debug(f'Copying {namespace}, {keypattern}')
     init_time = time.time()
     from_io = mummi_core.get_io(from_interface)

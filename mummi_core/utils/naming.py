@@ -218,7 +218,7 @@ class MuMMI_NamingUtils(object):
     @classmethod
     def cgframe_parse(cls, frame_id):
         idx = frame_id.rfind('_')
-        return frame_id[0:idx], int(frame_id[idx+2:])
+        return frame_id[0:idx], int(frame_id[idx + 2:])
 
     # --------------------------------------------------------------------------
     @classmethod
@@ -428,8 +428,13 @@ class MuMMI_NamingUtils(object):
 
     # --------------------------------------------------------------------------
     @classmethod
-    def dir_local(cls):
-        return cls.CONFIG['local_dir']
+    def dir_local(cls, subdir=''):
+        if subdir == '':
+             return cls.CONFIG['local_dir']
+        else:
+             ts = time.time()
+             st = datetime.datetime.fromtimestamp(ts).strftime('%Y%m%d_%H%M%S')
+             return os.path.join(cls.CONFIG['local_dir'], f'{subdir}-{st}')
 
     @classmethod
     def ml(cls, key=''):
