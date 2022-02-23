@@ -18,7 +18,7 @@ src_path = join(src_path, 'mummi_core')
 
 # ------------------------------------------------------------------------------
 setup(
-    name='mummi-core',
+    name='mummi_core',
     description='MuMMI Core',
     version='0.9.0',
     author='Harsh Bhatia, Helgi I Ingólfsson, Francesco Di Natale, Joseph Moon, Joseph R Chavez',
@@ -33,6 +33,7 @@ setup(
           'mummi_bind_global_redis = mummi_core.scripts.bind_global_redis:main'
       ]
     },
+    packages=find_packages(),
     install_requires=['pip>=21.2.4',
                       'pytest>=6.2.4',
                       'numpy>=1.20.2',

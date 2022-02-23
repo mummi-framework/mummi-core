@@ -9,6 +9,11 @@ then
 
    if [ ! -z $FLUX_MPI_MODULE ];
    then
+      if [[ ! -z $FLUX_MPI_MODULE_FILE ]];
+      then
+          module use $FLUX_MPI_MODULE_FILE
+      fi
+
       module load $FLUX_MPI_MODULE
    fi
 fi

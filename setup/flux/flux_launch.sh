@@ -37,7 +37,10 @@ cd $FLUX_ROOT
 
 # --smpiargs="-disable_gpu_hooks"
 unset OMP_NUM_THREADS
-env PMIX_MCA_gds="^ds12,ds21" FLUXION_QMANAGER_OPTIONS='queue-params=queue-depth=32' FLUXION_RESOURCE_OPTIONS="load-allowlist=node,core,gpu prune-filters=ALL:core,ALL:gpu reserve-vtx-vec=2000000 policy=first" jsrun -a 1 -c ALL_CPUS -g ALL_GPUS --bind=none -n $NNODES flux start -o,-S,log-filename=$FLUX_LOG -v $FLUX_BOOTSTRAP $FLUX_INFO &
+# from open_source branch tested on lassen
+#env PMIX_MCA_gds="^ds12,ds21"
+# campaign4 code from summit
+env FLUXION_QMANAGER_OPTIONS='queue-params=queue-depth=32' FLUXION_RESOURCE_OPTIONS="load-allowlist=node,core,gpu prune-filters=ALL:core,ALL:gpu reserve-vtx-vec=2000000 policy=first" jsrun -a 1 -c ALL_CPUS -g ALL_GPUS --bind=none -n $NNODES flux start -o,-S,log-filename=$FLUX_LOG -v $FLUX_BOOTSTRAP $FLUX_INFO &
 
 #echo " > Flux launched using jsrun"
 #echo " > flux modules: "
