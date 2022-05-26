@@ -1,32 +1,22 @@
 #!/usr/bin/env bash
 # ------------------------------------------------------------------------------
 
-if [ ! -z $FLUX_MODULE_FILE ];
-then
-   echo '> Loading flux environment ('$MUMMI_HOST')'
-   module use $FLUX_MODULE_FILE
-   module load $FLUX_SHIM_MODULE
+if [ ! -z $MUMMI_FLUX_MODULE_FILE ]; then
+   echo "(`hostname`: `date`) --> Loading flux environment ($MUMMI_HOST)"
+   module use $MUMMI_FLUX_MODULE_FILE
+   module load $MUMMI_FLUX_SHIM_MODULE  # >/dev/null 2>&1
 
-   if [ ! -z $FLUX_MPI_MODULE ];
-   then
-      if [[ ! -z $FLUX_MPI_MODULE_FILE ]];
-      then
-          module use $FLUX_MPI_MODULE_FILE
+   if [ ! -z $MUMMI_FLUX_MPI_MODULE ]; then
+      if [[ ! -z $MUMMI_FLUX_MPI_MODULE_FILE ]]; then
+          module use $MUMMI_FLUX_MPI_MODULE_FILE
       fi
-
-      module load $FLUX_MPI_MODULE
+      module load $MUMMI_FLUX_MPI_MODULE # >/dev/null 2>&1
    fi
+
+   # need to load the normal mpi again
+   module load $MUMMI_MPI_MODULE   # >/dev/null 2>&1
 fi
 
 export FLUX_SSH="ssh"
-
-# add some alias commands to handle flux easily
-#echo "> Setting up Flux aliases"
-alias flxuri='export FLUX_URI=`cat $MUMMI_ROOT/flux/flux.info`'
-alias flxls='flux jobs -a'
-alias flxat='flux job attach'
-alias flxcan='flux job cancel'
-
-#echo "> Loading Flux environment complete."
 
 # ------------------------------------------------------------------------------

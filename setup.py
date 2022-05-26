@@ -29,7 +29,7 @@ setup(
           'mummi_cmdclient = mummi_core.utils.cmdClient:main',
           'mummi_cmdserver = mummi_core.utils.cmdServer:main',
           'mummi_monitor = mummi_core.scripts.monitor_mummi:main',
-          'mummi_bind_local_redis = mummi_core.scripts.bind_local_redis:main',
+          'mummi_bind_local_redis = mummi_core.scripts. bind_local_redis:main',
           'mummi_bind_global_redis = mummi_core.scripts.bind_global_redis:main'
       ]
     },
@@ -39,11 +39,9 @@ setup(
                       'numpy>=1.20.2',
                       'pytaridx>=1.0.2',
                       'psutil>=5.8.0',
-                      'scipy>=1.6.3',
                       'filelock>=3.0.12',
                       'redis>=3.5.3',
                       'PyYAML>=5.3.1',
-                      'six>=1.15.0',
                       'cryptography>=2.7',
                       'maestrowf>=1.1.8'],
     classifiers=[

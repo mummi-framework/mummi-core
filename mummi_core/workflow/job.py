@@ -6,12 +6,12 @@ import enum
 
 # ------------------------------------------------------------------------------
 class SimulationStatus(enum.Enum):
-    Unknown = 0         # neither of the below (do continue or restart)
-    Success = 1         # simulation has ended
-    Failed  = 2         # simulation has failed (don't restart)
+    Unknown = 0  # neither of the below (do continue or restart)
+    Success = 1  # simulation has ended
+    Failed = 2  # simulation has failed (don't restart)
 
 
-## TODO: shoudl come from a config
+# TODO: should come from a config
 
 # types of jobs
 JOB_TYPES = ['createsim', 'cg', 'backmapping', 'aa']
@@ -23,16 +23,15 @@ JOB_NEXT_QUEUE = {'createsim': 'cg', 'backmapping': 'aa'}
 # ------------------------------------------------------------------------------
 class Job(object):
     def __init__(self, jtype, id, sims):
-
         assert isinstance(jtype, str)
         assert isinstance(id, int)
         assert isinstance(sims, list)
         assert jtype in JOB_TYPES
         assert id > 0
 
-        self.type = jtype       # job type
-        self.id = id            # job id
-        self.sims = sims        # sims running in this job
+        self.type = jtype  # job type
+        self.id = id  # job id
+        self.sims = sims  # sims running in this job
 
     def __str__(self):
         return 'Job[{}]: id = {}, sims = {}'.format(self.type, self.id, self.sims)

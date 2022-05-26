@@ -10,6 +10,7 @@ from .interfaces import get_interfaces, get_io
 from logging import getLogger
 LOGGER = getLogger(__name__)
 
+
 # ------------------------------------------------------------------------------
 # initialization of MuMMI
 # ------------------------------------------------------------------------------

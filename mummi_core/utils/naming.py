@@ -430,11 +430,11 @@ class MuMMI_NamingUtils(object):
     @classmethod
     def dir_local(cls, subdir=''):
         if subdir == '':
-             return cls.CONFIG['local_dir']
+            return cls.CONFIG['local_dir']
         else:
-             ts = time.time()
-             st = datetime.datetime.fromtimestamp(ts).strftime('%Y%m%d_%H%M%S')
-             return os.path.join(cls.CONFIG['local_dir'], f'{subdir}-{st}')
+            ts = time.time()
+            st = datetime.datetime.fromtimestamp(ts).strftime('%Y%m%d_%H%M%S')
+            return os.path.join(cls.CONFIG['local_dir'], f'{subdir}-{st}')
 
     @classmethod
     def ml(cls, key=''):
