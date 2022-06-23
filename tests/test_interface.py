@@ -34,20 +34,18 @@ def test_keys(iointerface=default_io):
     print(f'Bad namespace exists: {iointerface.namespace_exists("_test_io/baddir")}')
     print(f'Bad key exists: {iointerface.file_exists("_test_io/dir", "badkey")}')
     print(f'Key in bad namespace exists: {iointerface.file_exists("_test_io/baddir", "testkey")}')
-    print_separator()
 
 
 def test_npz(iointerface=default_io):
     print('TEST IO: npz')
     arrays = {'a':np.random.rand(4, 6), 'b':np.random.rand(3, 5)}
-    iointerface.save_npz('_test_io/file.tar', 'key', arrays)
-    loaded = iointerface.load_npz('_test_io/file.tar', 'key')
+    iointerface.save_npz('_test_io/file', 'key', arrays)
+    loaded = iointerface.load_npz('_test_io/file', 'key')
     maxVal = 0.0
     for key in arrays:
         difference = np.subtract(arrays[key], loaded[key])
         maxVal = max(maxVal, np.max(difference))
     print("Maximum difference read: {}".format(maxVal))
-    print_separator()
 
 
 def test_checkpoint(iointerface=default_io):
@@ -60,14 +58,12 @@ def test_checkpoint(iointerface=default_io):
     iointerface.send_signal('_test_io/', 'test_signal.txt')
     print(iointerface.test_signal('_test_io/', 'test_signal.txt'))
     iointerface.take_backup('_test_io/test_signal.txt')
-    print_separator()
 
 
 def test_saveload(iointerface=default_io):
     print('TEST IO: files')
-    iointerface.save_files('_test_io/test_namespace.tar', 'test_key', 'blahblahblah')
-    print(iointerface.load_files('_test_io/test_namespace.tar', 'test_key'))
-    print_separator()
+    iointerface.save_files('_test_io/test_namespace', 'test_key', 'blahblahblah')
+    print(iointerface.load_files('_test_io/test_namespace', 'test_key'))
 
 
 def test_performance(iointerface=default_io):
@@ -82,7 +78,6 @@ def test_performance(iointerface=default_io):
     iointerface.load_files('_test_io/dir', keys)
     print(len(iointerface.list_keys('_test_io/dir', '*')))
     print(f'Time: {time.time() - t0} sec')
-    print_separator()
 
 
 def test_heterogenous(iointerface=default_io):
@@ -91,7 +86,7 @@ def test_heterogenous(iointerface=default_io):
     iointerface.save_files('_test_io/dir', ['testkey2', 'testkey3', 'testkey4'], 
         [pickle.dumps(5), 'testdata3', pickle.dumps({'a':5})])
     print(iointerface.load_files('_test_io/dir', ['testkey2', 'testkey3', 'testkey4']))
-    print_separator()
+
 
 def cleanup():
     shutil.rmtree('_test_io', ignore_errors=True)
@@ -108,11 +103,17 @@ if __name__ == '__main__':
         iointerface = mummi_core.get_io(io)
 
         test_keys(iointerface)
+        print_separator()
         test_npz(iointerface)
+        print_separator()
         test_checkpoint(iointerface)
+        print_separator()
         test_saveload(iointerface)
+        print_separator()
         test_performance(iointerface)
+        print_separator()
         test_heterogenous(iointerface)
+        print_separator()
 
 cleanup()
 atexit.register(cleanup)
