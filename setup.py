@@ -14,7 +14,7 @@ src_path = os.path.join(src_path, 'mummi_core')
 # ------------------------------------------------------------------------------
 setup(
     name='mummi_core',
-    version='0.9.0',
+    version='1.0.0',
     description='MuMMI Core',
     url='https://github.com/mummi-framework/mummi-core',
 
