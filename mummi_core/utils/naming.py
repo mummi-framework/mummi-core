@@ -1,6 +1,14 @@
-# Copyright (c) 2021, Lawrence Livermore National Security, LLC. All rights reserved. LLNL-CODE-827197.
-# This work was produced at the Lawrence Livermore National Laboratory (LLNL) under contract no. DE-AC52-07NA27344 (Contract 44) between the U.S. Department of Energy (DOE) and Lawrence Livermore National Security, LLC (LLNS) for the operation of LLNL.  See license for disclaimers, notice of U.S. Government Rights and license terms and conditions.
-# ------------------------------------------------------------------------------
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# -----------------------------------------------------------------------------
+# Copyright (c) 2021, Lawrence Livermore National Security, LLC. All rights
+# reserved. LLNL-CODE-827197. This work was produced at the Lawrence Livermore
+# National Laboratory (LLNL) under contract no. DE-AC52-07NA27344 (Contract 44)
+# between the U.S. Department of Energy (DOE) and Lawrence Livermore National
+# Security, LLC (LLNS) for the operation of LLNL.  See license for disclaimers,
+# notice of U.S. Government Rights and license terms and conditions.
+# -----------------------------------------------------------------------------
+
 import os
 import sys
 import yaml
@@ -18,35 +26,52 @@ class MuMMI_NamingUtils(object):
 
     # this dictionary contains the names of resource directories
     RESNAMES = {
-        'martini':   '{resource}/martini',
-        'charmm':    '{resource}/charmm',
-        'ddcMD':     '{resource}/ddcmd',
-        'states':    '{resource}/states-ras/',
-        'rdfs':      '{resource}/rdfs-initial/ras-lipid',
-        'agg_counts':'{resource}/rdfs-initial/aggregated_counts',
-        'ml':        '{resource}/ml',
-        'pmfcode':   '{resource}/pmfcode',
-        'backmapping': '{resource}/backmapping',
-        'structures': '{resource}/structures',
+        'martini':               '{resource}/martini',
+        'martini3':              '{resource}/martini3',
+        'charmm':                '{resource}/charmm',
+        'ddcMD':                 '{resource}/ddcmd',
+        'ddcMD-martini3':        '{resource}/ddcmd-martini3',
+        'states':                '{resource}/states-ras/',
+        'rdfs':                  '{resource}/rdfs-initial/ras-lipid',
+        'agg_counts':            '{resource}/rdfs-initial/aggregated_counts',
+        'ml':                    '{resource}/ml',
+        'ucg':                   '{resource}/ucg',
+        'pmfcode':               '{resource}/pmfcode',
+        'backmapping':           '{resource}/backmapping',
+        'structures':            '{resource}/structures',
+        'ref_structures':        '{resource}/reference_structures',
+        'macro':                 '{resource}/macro',
+        'macro_c2':              '{resource}/macro_c2',
+        'macro_c3':              '{resource}/macro_c3',
+        'ml-validator':          '{resource}/ml-validator-resources',
+        'martini3-validator':    '{resource}/martini3-validator-resources',
+        'ucg-validator':         '{resource}/ucg-validator-resources',
+        'analysis':              '{resource}/analysis',
+        'generative-indices':    '{resource}/ml/generative-model-c3/indices',
+        'ucg-autoencoder':       '{resource}/ml/ucg-autoencoder-c3'
     }
 
     # this dictionary contains the names of directories in MuMMI_MUMMI_ROOT
     DIRNAMES = {
-        'ml':          '{root}/ml',
-        'redis':       '{root}/redis',
-        'flux':        '{root}/flux',
-        'workspace':   '{root}/workspace',
+        'ml':           '{root}/ml',
+        'mlserver':     '{root}/mlserver',
+        'ucgserver':    '{root}/ucgserver',
+        'redis':        '{root}/redis',
+        'flux':         '{root}/flux',
+        'workspace':    '{root}/workspace',
+        'ucg':          '{root}/ucg',
         #
-        'macro':       '{root}/macro',
-        'patches':     '{root}/patches',
+        'macro':        '{root}/macro',
+        'patches':      '{root}/patches',
         #
-        'cg':          '{root}/sims-cg/{simname}',
-        'aa':          '{root}/sims-aa/{simname}',
+        'all-cg':       '{root}/sims-cg',
+        'cg':           '{root}/sims-cg/{simname}',
+        'aa':           '{root}/sims-aa/{simname}',
         #'cg-failed':   '{root}/sims-cg/failed/{simname}',
         #'aa-failed':   '{root}/sims-aa/failed/{simname}',
         #
-        'feedback-cg': '{root}/feedback-cg2macro',
-        'feedback-aa': '{root}/feedback-aa2cg'
+        'feedback-cg':  '{root}/feedback-cg2ml',
+        'feedback-aa':  '{root}/feedback-aa2cg'
     }
 
     # this dictionary contains the patterns of filenames
@@ -57,8 +82,8 @@ class MuMMI_NamingUtils(object):
         #'pfpatch':  '{simname}_{idx:012d}',
         #'cgframe':  '{simname}_f{frame:012d}',
         #
-        'snapshot': 'pos.{frame:012d}',
-        'aaframe':  '{simname}_aaf{aaf:08d}',
+        'snapshot':     'pos.{frame:012d}',
+        'aaframe':      '{simname}_aaf{aaf:08d}',
         #'aaframe':  '{simname}_cgf{cgf:08d}_aaf{aaf:08d}',
         #
         #'cgpatch':  'alldists_sr2_pfpatch_{idx:012d}_cg',
@@ -68,7 +93,7 @@ class MuMMI_NamingUtils(object):
         #'pdb':      '{simname}_{prefix}_f{idx:012d}_pdb',
         #'analysis': '{simname}_{prefix}_f{idx:012d}_a{atype}',
         #
-        'structures':  '{pro_type}/{pro_type}_state_{state}_{struc_number}.gro',
+        'structures':   '{pro_type}/{pro_type}_state_{state}_{struc_number}.gro',
         'rdfs':         'KRAS-{lipid}.state{state}.txt',
         'feedback_pdb': '{key}_{region}_{id}.pdb',
         'feedback_itp': '{key}_{id}.itp'
@@ -78,7 +103,7 @@ class MuMMI_NamingUtils(object):
     STATUS_FLAGS = {
         'createsim':    ('createsims_success', 'createsims_failure'),
         'backmapping':  ('backmapping_success', 'backmapping_failure'),
-        'cg':           ('cg_success', 'cg_failure'),
+        'cg':           ('cg_success', 'cg_failure', 'cg_stop'),
         'aa':           ('aa_success', 'aa_failure')
     }
 
@@ -102,6 +127,11 @@ class MuMMI_NamingUtils(object):
 
         if app == '':
             app = os.path.expandvars(os.environ['MUMMI_APP'])
+
+        if "MUMMI_MINI" in os.environ:
+            cls.MUMMI_MINI = True
+        else:
+            cls.MUMMI_MINI = False
 
         # ----------------------------------------------------------------------
         # TODO: get the specs from arguments
@@ -209,6 +239,10 @@ class MuMMI_NamingUtils(object):
     @classmethod
     def cgframe(cls, simname, frame_idx):
         return f'{simname}_f{frame_idx:012d}'
+
+    @classmethod
+    def ucgframe(cls, simname, frame_idx):
+        return f'{simname}'
 
     @classmethod
     def pfpatch_parse(cls, patch_id):
@@ -442,5 +476,13 @@ class MuMMI_NamingUtils(object):
             return cls.CONFIG['ml']
         else:
             return cls.CONFIG['ml'][key]
+
+    @classmethod
+    def ucg(cls, key=''):
+        if len(key) == 0:
+            return cls.CONFIG['ucg']
+        else:
+            return cls.CONFIG['ucg'][key]
+
 
 # ------------------------------------------------------------------------------

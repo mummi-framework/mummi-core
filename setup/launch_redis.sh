@@ -9,7 +9,7 @@ if ! [[ $mummi_redis_nnodes =~ $re ]] ; then
 fi
 
 if [ $mummi_redis_nnodes -eq 0 ]; then
-  echo "(`hostname`: `date`) --> ERROR: Not Launching Redis because mummi_redis_nnodes = $mummi_redis_nnodes" >&2
+  echo "(`hostname`: `date`) --> WARNING: Not Launching Redis because mummi_redis_nnodes = $mummi_redis_nnodes" >&2
   exit 1
 fi
 

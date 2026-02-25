@@ -1,12 +1,21 @@
-# Copyright (c) 2021, Lawrence Livermore National Security, LLC. All rights reserved. LLNL-CODE-827197.
-# This work was produced at the Lawrence Livermore National Laboratory (LLNL) under contract no. DE-AC52-07NA27344 (Contract 44) between the U.S. Department of Energy (DOE) and Lawrence Livermore National Security, LLC (LLNS) for the operation of LLNL.  See license for disclaimers, notice of U.S. Government Rights and license terms and conditions.
-# ------------------------------------------------------------------------------
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# -----------------------------------------------------------------------------
+# Copyright (c) 2021, Lawrence Livermore National Security, LLC. All rights
+# reserved. LLNL-CODE-827197. This work was produced at the Lawrence Livermore
+# National Laboratory (LLNL) under contract no. DE-AC52-07NA27344 (Contract 44)
+# between the U.S. Department of Energy (DOE) and Lawrence Livermore National
+# Security, LLC (LLNS) for the operation of LLNL.  See license for disclaimers,
+# notice of U.S. Government Rights and license terms and conditions.
+# -----------------------------------------------------------------------------
+
 import os
 import sys
 import time
 import threading
 import multiprocessing
 import logging
+from typing import List, Union
 
 from .utilities import expand_path
 from .utilities import get_memory_usage
@@ -156,6 +165,43 @@ class MultiprocessFileHandler(logging.FileHandler):
         except Exception:
             self.handleError(record)
 
+class MummiFilterLogger(logging.Filter):
+    """
+    Downgrade to debug from log any records that match on of the 
+    strings passed as arguments.
+
+    For example to downgrade to debug all logs from MDAnalysis:
+
+    .. code-block:: python
+        import logging
+        from logging import Logger
+        from mummi_core.utils import MummiFilterLogger
+        LOGGER = logging.getLogger(__name__)
+        filter = MummiFilterLogger(str_to_filter=["MDAnalysis"])
+        LOGGER.addFilter(filter)
+
+    :param str_to_filter: List of strings that should be excluded from the logs
+    :type str_to_filter: Union[List[str], str], optional
+    :param new_level: Level to which records will be downgraded (by default DEBUG)
+    :type new_level: int, optional
+    """
+    def __init__(self, str_to_filter: Union[List[str], str] = "", new_level: int = 10) -> None:
+        super().__init__("")
+        if isinstance(str_to_filter, str):
+            self.str_to_filter = [str_to_filter]
+        elif isinstance(str_to_filter, list):
+            self.str_to_filter = str_to_filter
+        else:
+            self.str_to_filter = []
+        if not new_level in [10, 20, 30, 40, 50]:
+            new_level = 10
+        self.new_level = new_level
+
+    def filter(self, record):
+        for s in self.str_to_filter:
+            if s in record.pathname or s in record.getMessage():
+                record.level = self.new_level
+        return True
 
 # ------------------------------------------------------------------------------
 class NoHistoryFilter(logging.Filter):

@@ -3,11 +3,11 @@
 MuMMI offers a consistent I/O API with easily switchable backends. Currently, 
 there are three backends.
 
-|           | Save Location           | Advantage |
-|-----------|-------------------------|---|
-| `IO_Simple` | on the file system      | Easy to edit and view data |
+|             | Save Location           | Advantage                          |
+|-------------|-------------------------|------------------------------------|
+| `IO_Simple` | on the file system      | Easy to edit and view data         |
 | `IO_Tar`    | in a compressed tarball | High scalability with low overhead |
-| `IO_Redis`  | in a Redis database     | Extreme scalability |
+| `IO_Redis`  | in a Redis database     | Extreme scalability                |
 
 MuMMI uses the notion of a "namespace" to store the data. For `IO_Simple`, this 
 is simply a path to a directory. For `IO_Tar`, the namespace is the path to a 

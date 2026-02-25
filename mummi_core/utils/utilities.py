@@ -1,6 +1,14 @@
-# Copyright (c) 2021, Lawrence Livermore National Security, LLC. All rights reserved. LLNL-CODE-827197.
-# This work was produced at the Lawrence Livermore National Laboratory (LLNL) under contract no. DE-AC52-07NA27344 (Contract 44) between the U.S. Department of Energy (DOE) and Lawrence Livermore National Security, LLC (LLNS) for the operation of LLNL.  See license for disclaimers, notice of U.S. Government Rights and license terms and conditions.
-# ------------------------------------------------------------------------------
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# -----------------------------------------------------------------------------
+# Copyright (c) 2021, Lawrence Livermore National Security, LLC. All rights
+# reserved. LLNL-CODE-827197. This work was produced at the Lawrence Livermore
+# National Laboratory (LLNL) under contract no. DE-AC52-07NA27344 (Contract 44)
+# between the U.S. Department of Energy (DOE) and Lawrence Livermore National
+# Security, LLC (LLNS) for the operation of LLNL.  See license for disclaimers,
+# notice of U.S. Government Rights and license terms and conditions.
+# -----------------------------------------------------------------------------
+
 import datetime
 import logging
 import os
@@ -11,9 +19,11 @@ import time
 import sys
 import traceback
 import signal
+import yaml
+
+import mummi_core # For read_specs
 
 LOGGER = logging.getLogger(__name__)
-
 
 # ------------------------------------------------------------------------------
 def sig_ign_and_rename_proc(new_proc_name):
@@ -231,4 +241,39 @@ def timeout(seconds: int):
     return decorator
 
 # ------------------------------------------------------------------------------
+# Functions to read MuMMI specs turn them into a dict
+
+def _eval_value(val):
+    try:
+        gdict = {"mummi_ras": mummi_core, "mummi_core": mummi_core}
+        new_val = eval(val, gdict)
+        return new_val
+    except Exception as e:
+        return val
+
+def _read_specs(config: dict) -> dict:
+    if not isinstance(config, dict) and not isinstance(config, list):
+        return _eval_value(config)
+    for k, v in config.copy().items():
+        if isinstance(v, dict):
+            # print(f"---- {k} : {v}")
+            config[k] = _read_specs(v)
+        elif isinstance(v, list):
+            config[k] = [_read_specs(i) for i in v]
+        else:
+            config[k] = _eval_value(v)
+    return config
+
+def read_specs(spath: str) -> dict:
+    config = None
+    if os.path.isfile(spath):
+        # read the specs    
+        with open(spath, 'r') as data:
+            config = yaml.load(data, Loader = yaml.FullLoader)
+        config = _read_specs(config)
+    else:
+        print(f"Error: Spec file not found {spath}")
+    return config
+
+
 # ------------------------------------------------------------------------------

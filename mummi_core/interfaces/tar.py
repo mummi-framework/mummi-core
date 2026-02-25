@@ -1,6 +1,14 @@
-# Copyright (c) 2021, Lawrence Livermore National Security, LLC. All rights reserved. LLNL-CODE-827197.
-# This work was produced at the Lawrence Livermore National Laboratory (LLNL) under contract no. DE-AC52-07NA27344 (Contract 44) between the U.S. Department of Energy (DOE) and Lawrence Livermore National Security, LLC (LLNS) for the operation of LLNL.  See license for disclaimers, notice of U.S. Government Rights and license terms and conditions.
-# ------------------------------------------------------------------------------
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# -----------------------------------------------------------------------------
+# Copyright (c) 2021, Lawrence Livermore National Security, LLC. All rights
+# reserved. LLNL-CODE-827197. This work was produced at the Lawrence Livermore
+# National Laboratory (LLNL) under contract no. DE-AC52-07NA27344 (Contract 44)
+# between the U.S. Department of Energy (DOE) and Lawrence Livermore National
+# Security, LLC (LLNS) for the operation of LLNL.  See license for disclaimers,
+# notice of U.S. Government Rights and license terms and conditions.
+# -----------------------------------------------------------------------------
+
 import functools
 import io
 import os
@@ -38,12 +46,28 @@ class IO_Tar (IO_Base):
         assert isinstance(namespace, str) and isinstance(key, str)
 
         namespace = check_extn(namespace, '.tar')
-        if not os.path.isfile(namespace) or not os.path.isfile(namespace+'.pylst'):
+        if not os.path.isfile(namespace) or not os.path.isfile(namespace + '.pylst'):
             return False
 
         tf = IndexedTarFile()
         tf.open(namespace, 'r')
         exists = tf.exist(key)
+        tf.close()
+        return exists
+
+    @classmethod
+    def files_exist(cls, namespace, keys):
+        assert isinstance(namespace, str) and isinstance(keys, list)
+
+        namespace = check_extn(namespace, '.tar')
+        n = len(keys)
+
+        if not os.path.isfile(namespace) or not os.path.isfile(namespace + '.pylst'):
+            return [False for i in range(n)]
+
+        tf = IndexedTarFile()
+        tf.open(namespace, 'r')
+        exists = [tf.exist(key) for key in keys]
         tf.close()
         return exists
 
@@ -91,7 +115,6 @@ class IO_Tar (IO_Base):
     @classmethod
     def _save_files(cls, namespace, filenames, data):
 
-        LOGGER.debug(f'Writing {len(filenames)} files to ({namespace})')
         try:
             namespace = check_extn(namespace, '.tar')
             os.makedirs(os.path.dirname(namespace), exist_ok=True)
@@ -104,7 +127,7 @@ class IO_Tar (IO_Base):
                     stream.write(d)
                     tf.write(fname, stream.getvalue())
             tf.close()
-            LOGGER.info(f'Wrote {len(filenames)} files to ({namespace})')
+            LOGGER.debug(f'Wrote {len(filenames)} files to ({namespace})')
             return True
         except Exception as e:
             LOGGER.error(f'Failed to save files: {e}')
