@@ -9,24 +9,22 @@
 # notice of U.S. Government Rights and license terms and conditions.
 # -----------------------------------------------------------------------------
 
-import sys
-from logging import getLogger
+from .base import BrokerInterface
+from .rabbitmq_rpc import RPCServer, RPCClient
 
-import mummi_core
+KNOWN_BROKER_INTERFACES = ["rabbitmq"]
 
-LOGGER = getLogger(__name__)
+def get_broker_interfaces():
+    return KNOWN_BROKER_INTERFACES
 
+def get_broker(_):
+    if _ == "rabbitmq":
+        from .rabbitmq import RabbitMQBroker
+        interface = RabbitMQBroker
+    else:
+        raise ValueError(f"Invalid Broker interface requested ({_})")
 
-# ------------------------------------------------------------------------------
-def main():
+    # interface.check_environment()
+    return interface
 
-    mummi_core.init()
-    io_redis = mummi_core.get_io('redis')
-    io_redis.bind_local_redis()
-
-
-if __name__ == '__main__':
-    main()
-
-# ------------------------------------------------------------------------------
-
+# -----------------------------------------------------------------------------

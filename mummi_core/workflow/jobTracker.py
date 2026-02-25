@@ -1,9 +1,16 @@
-# Copyright (c) 2021, Lawrence Livermore National Security, LLC. All rights reserved. LLNL-CODE-827197.
-# This work was produced at the Lawrence Livermore National Laboratory (LLNL) under contract no. DE-AC52-07NA27344 (Contract 44) between the U.S. Department of Energy (DOE) and Lawrence Livermore National Security, LLC (LLNS) for the operation of LLNL.  See license for disclaimers, notice of U.S. Government Rights and license terms and conditions.
-# ------------------------------------------------------------------------------
-# ------------------------------------------------------------------------------
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# -----------------------------------------------------------------------------
+# Copyright (c) 2021, Lawrence Livermore National Security, LLC. All rights
+# reserved. LLNL-CODE-827197. This work was produced at the Lawrence Livermore
+# National Laboratory (LLNL) under contract no. DE-AC52-07NA27344 (Contract 44)
+# between the U.S. Department of Energy (DOE) and Lawrence Livermore National
+# Security, LLC (LLNS) for the operation of LLNL.  See license for disclaimers,
+# notice of U.S. Government Rights and license terms and conditions.
+# -----------------------------------------------------------------------------
+
 import os
-from typing import Tuple, List, ItemsView
+from typing import Tuple, List, ItemsView, Dict
 import time, datetime, importlib
 from functools import partial
 from multiprocessing import Pool
@@ -23,14 +30,12 @@ from logging import getLogger
 
 LOGGER = getLogger(__name__)
 
-
 # ------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
 class JobTracker:
     """Abstract base class for a job tracker"""
 
-    def __init__(self, job_desc, total_nodes,
-                 iointerface, adapter_batch,
+    def __init__(self, job_desc, total_nodes, iointerface, adapter_batch, workspace: str = None,
                  enable_scheduling=True):
 
         self.job_desc = job_desc
@@ -38,26 +43,36 @@ class JobTracker:
         self.config = job_desc['config']
 
         self.iointerface = iointerface
-        adapter_type = adapter_batch['type']
+        self.adapter_type = adapter_batch['type']
         assert isinstance(self.type, str)
         assert self.type in JOB_TYPES
 
         assert isinstance(adapter_batch, dict)
-        assert isinstance(adapter_type, str)
+        assert isinstance(self.adapter_type, str)
 
         self.do_scheduling = enable_scheduling
-        try:
-            self.adapter = ScriptAdapterFactory.get_adapter(adapter_type)(**adapter_batch)
-        except Exception:
-            self.adapter = None
-            self.do_scheduling = False
+        self.adapter = None
+
+        if self.do_scheduling:
+            try:
+                self.adapter = ScriptAdapterFactory.get_adapter(self.adapter_type)(**adapter_batch)
+            except Exception:
+                self.adapter = None
+                self.do_scheduling = False
 
         LOGGER.info(f"[{self.type}] Initializing JobTracker (assigned nodes = {total_nodes})")
 
         # flags to check the status!
-        (self.flag_success, self.flag_failure) = Naming.status_flags(self.type)
+        flags = Naming.status_flags(self.type)
+        self.flag_success = flags[0]
+        self.flag_failure = flags[1]
+        # If CG then there a stop flag cg_stop
+        try:
+            self.flag_stop = flags[2]
+        except Exception as e:
+            self.flag_stop = None
 
-        LOGGER.debug(f'[{self.type}] status flags: ({self.flag_success})({self.flag_failure})')
+        LOGGER.debug(f'[{self.type}] status flags: ({self.flag_success})({self.flag_failure}, {self.flag_stop})')
 
         # resource requirements for this type of job (PER SIMULATION)
         self.nnodes = int(self.config['nnodes'])
@@ -105,13 +120,17 @@ class JobTracker:
         LOGGER.debug(f'[{self.type}] max_jobs_total = {self.max_jobs_total}')
 
         # additional flux options
-        self.use_broker = bool(self.config.get("use_broker", False))
+        self.nested = bool(self.config.get("nested", False))
         self.broker_options = self.config.get("broker_options", {})
 
-        self.workspace = Naming.dir_root('workspace')
-        self.hist_file = os.path.join(self.workspace, 'jobtracker.history.csv')
+        self.default_workspace = Naming.dir_root('workspace')
+        self.workspace = os.path.join(self.default_workspace, self.type)
+        os.makedirs(self.workspace, exist_ok=True)
+
+        self.hist_file = os.path.join(self.default_workspace, 'jobtracker.history.csv')
 
         # state of the job tracker
+        self.futures = {}  # dict of (Simname) --> (Future Job ID)
         self.running = {}  # dict of (job id --> job)
         self.queued = []  # list of simulations to be started
         self.jobCnt = 0  # only for fake run!
@@ -120,14 +139,16 @@ class JobTracker:
             f'[{self.type}] Initialized JobTracker: '
             f'#nodes = {total_nodes}, '
             f'#max_jobs = {self.max_jobs_total}, '
-            f'bundle_size = {self.bundle_size}')
+            f'bundle_size = {self.bundle_size}, '
+            f'workspace = {self.workspace}')
 
     # --------------------------------------------------------------------------
     def __str__(self):
         return f'JobTracker[{self.type}]: ' \
                f'#max_jobs = {self.max_jobs_total}, ' \
                f'#running = {len(self.running)}, ' \
-               f'#queued = {len(self.queued)}'
+               f'#queued = {len(self.queued)} ' \
+               f'workspace = {self.workspace}'
 
     def __repr__(self):
         return self.__str__()
@@ -174,7 +195,11 @@ class JobTracker:
         if len(data) == 0:
             return
 
+        # # Update future before checking
+        # jobs_updated = self.update_future_jobs()
+
         ts = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+        LOGGER.debug(f" Writing {self.hist_file} ")
 
         # write header if the file does not exist
         if not os.path.isfile(self.hist_file):
@@ -186,6 +211,7 @@ class JobTracker:
             for d in data:
                 fp.write(f'{ts}, {self.type}, {event_type}, {d}, '
                          f'{len(self.running)}, {len(self.queued)}, {comments}\n')
+        LOGGER.debug(f" Done writing {self.hist_file} ")
 
     def dir_sim(self, simname):
         ds = self.job_desc.get('dir_sim') or self.type
@@ -256,21 +282,29 @@ class JobTracker:
         assert isinstance(sim_names, list)
         assert all([isinstance(s, str) for s in sim_names])
 
-        flag_success, flag_failure = Naming.status_flags(job_type)
+        flags = Naming.status_flags(job_type)
+        flag_success = flags[0]
+        flag_failure = flags[1]
+        # Only for CG
+        if len(flags) == 3:
+            flag_stop = flags[2]
+        else:
+            flag_stop = ''
 
         statuses = []
         for s in sim_names:
             flag_path = dir_sim(s)
-
             if iointerface.test_signal(flag_path, flag_success):
                 LOGGER.debug(f'[{job_type}] found ({flag_path})/({flag_success})')
                 statuses.append(SimulationStatus.Success)
-
             elif iointerface.test_signal(flag_path, flag_failure):
-                LOGGER.debug(f'[{job_type}] found ({flag_path})/({flag_success})')
+                LOGGER.debug(f'[{job_type}] found ({flag_path})/({flag_failure})')
                 statuses.append(SimulationStatus.Failed)
-
+            elif iointerface.test_signal(flag_path, flag_stop):
+                LOGGER.debug(f'[{job_type}] found ({flag_path})/({flag_stop})')
+                statuses.append(SimulationStatus.Stop)
             else:
+                # LOGGER.debug(f'[{job_type}] did not find any flags in ({flag_path}), sims status is Unknown')
                 statuses.append(SimulationStatus.Unknown)
 
         return statuses
@@ -297,16 +331,20 @@ class JobTracker:
         sims_success = []
         sims_failed = []
         sims_unknown = []
+        sims_stop = []
 
         for i in range(len(sim_names)):
             if sim_statuses[i] == SimulationStatus.Success:
                 sims_success.append(sim_names[i])
             elif sim_statuses[i] == SimulationStatus.Failed:
                 sims_failed.append(sim_names[i])
+            elif sim_statuses[i] == SimulationStatus.Stop:
+                sims_stop.append(sim_names[i])
             else:
                 sims_unknown.append(sim_names[i])
 
-        return sims_success, sims_failed, sims_unknown
+        LOGGER.debug(f"sims_success = {sims_success}, sims_failed = {sims_failed}, sims_unknown = {sims_unknown} and sims_stop = {sims_stop}")
+        return sims_success, sims_failed, sims_unknown, sims_stop
 
     # --------------------------------------------------------------------------
     def add_to_queue(self, sim_names, prepend=False):
@@ -370,12 +408,15 @@ class JobTracker:
             n_jobs:         number of jobs started
             sims_started:   names of the sims started
         """
-        assert 1 == self.bundle_size
-        assert isinstance(n_jobs, int)
-        assert n_jobs >= 0
-        assert self.nrunning_jobs() <= self.max_jobs_total
-        assert all([isinstance(q, str) for q in self.queued])
-
+        try:
+            assert 1 == self.bundle_size
+            assert isinstance(n_jobs, int)
+            assert n_jobs >= 0
+            assert self.nrunning_jobs() <= self.max_jobs_total
+            assert all([isinstance(q, str) for q in self.queued])
+        except AssertionError:
+            LOGGER.info(f"bundle_size = {self.bundle_size} | n_jobs= {n_jobs} | nrunning_jobs = {self.nrunning_jobs()} | max_jobs_total = {self.max_jobs_total}")
+            raise
         if n_jobs == 0:
             return 0, []
 
@@ -413,7 +454,8 @@ class JobTracker:
         # and replaced with a parallel version
         if self.do_scheduling:
             # May 20: switch back to serial
-            if False:
+            # LP: April 21: the pool version hangs sometimes for ever for unknown reasons (futex_abstimed_wait)
+            if True:
                 '''
                 for i in range(n_jobs):
                     sim_names = sims_started[i * self.bundle_size:(i + 1) * self.bundle_size]
@@ -421,28 +463,97 @@ class JobTracker:
                     self.running[jobid] = Job(self.type, jobid, sim_names)
                      LOGGER.debug(f'[{self.type}] Started job {} for {}'.format(jobid, sim_names))
                 '''
-                for simname in sims_started:
-                    _simname, cmd_script, step = self.write_script(simname)
-                    LOGGER.debug(f'[{self.type}] submitting script {simname} {cmd_script}')
-                    # submit cmd_script to adapter and append (jobid, simname) to queue
-                    submit_record = self.adapter.submit(step, cmd_script, self.workspace)
-                    if submit_record.submission_code != SubmissionCode.OK:
-                        LOGGER.error(f'[{self.type}] Failed to submit a {self.type} job for simname = {simname}')
-                        # raise Exception('Failed to submit a {} job'.format(self.type))
+                if self.adapter_type == "flux-async":
+                    start = time.time()
+                    steps = []
+                    cmd_scripts = []
+                    _simnames = []
+                    nb_jobs_started = 0
 
-                    job_id = submit_record.job_identifier
-                    self.running[job_id] = Job(self.type, job_id, [simname])
-                    LOGGER.debug(f'[{self.type}] Started job {job_id} for {simname}')
+                    nb_sims_by_chunk = 500
+                    sims_started_short = [sims_started[i:i+nb_sims_by_chunk] for i in range(0, len(sims_started), nb_sims_by_chunk)]
+                    chunk_k = 1
+                    total_write_time = 0
+                    total_sched_time = 0
+                    total_wait_time = 0
+                    sleep_duration = 15
+                    sleep_time = 0
+                    total_size = len(sims_started_short)
+                    
+                    for chunk in sims_started_short:
+                        start_sub = time.time()
+                        steps = []
+                        cmd_scripts = []
+                        _simnames = []
+                        simname_cwd = []
+                        LOGGER.debug(f"Chunk of submitting scripts: {chunk_k}/{total_size}")
+                        for simname in chunk:
+                            # Here we write Maestro files into different folders to circumvent Lustre problems
+                            # For example if simname = structure_iter00_000000010661_NYNY then we write it
+                            # into $MUMMI_ROOT/workspace/cg/61/ (or workspace/createsim/61/ if it's a creatsims)
+                            simid = str(int(simname.split("_")[2]) % 100)
+                            cwd = os.path.join(self.workspace, simid)
+                            os.makedirs(cwd, exist_ok=True)
+                            simname_cwd.append(cwd)
+                            LOGGER.info(f"[{self.type}] Setting dir {cwd} for sim {simname}")
 
+                            _simname, cmd_script, step = self.write_script(simname, cwd)
+                            LOGGER.debug(f"[{self.type}] submitting script {simname} {cmd_script}")
+                            _simnames.append(_simname)
+                            steps.append(step)
+                            cmd_scripts.append(cmd_script)
+                        end_sub = time.time() - start_sub
+                        LOGGER.debug(f"Done chunk of submitting scripts: {chunk_k}/{total_size} in {len(simname)/end_sub} scripts/sec")
+                        chunk_k += 1
+                        total_write_time += end_sub
+
+                        start_sched = time.time()
+                        sims_scheduled = self.adapter.submit(steps, cmd_scripts, simname_cwd)
+                        end_sched = time.time() - start_sched
+                        LOGGER.info(f"Subnitted {len(steps)} jobs in {len(steps)/end_sched} jobs/secs")
+                        total_sched_time += end_sched
+
+                        start_sched2 = time.time()
+                        for job_id, step_name in sims_scheduled:
+                            simname = step_name.split('-')[-1]
+                            self.running[job_id] = Job(self.type, job_id, [simname])
+                            LOGGER.debug(f"[{self.type}] Started job async {job_id} for {simname} (step={step_name})")
+                            nb_jobs_started += 1
+                        end_sched2 = time.time() - start_sched2
+                        LOGGER.info(f"[{self.type}] Waited for async {len(steps)} jobs in {len(steps)/end_sched2} jobs/secs")
+                        total_wait_time += end_sched2
+
+                        time.sleep(sleep_duration)
+                        sleep_time += sleep_duration
+                        # LOGGER.info(f"[{self.type}] Slept for {sleep_duration} secs to not overload Flux")
+
+                    end = time.time() - start
+                    LOGGER.info(f"[{self.type}] Submitted async {nb_jobs_started} in {(end-sleep_time):.3f} seconds ({nb_jobs_started/(end-sleep_time)} jobs/secs, with sleep time {nb_jobs_started/end} jobs/secs)")
+                    LOGGER.info(f"[{self.type}] Stats jobs {nb_jobs_started} in {(end-sleep_time):.3f} seconds (write={total_write_time} sched={total_sched_time} wait={total_wait_time}, sleep={sleep_time} | {total_write_time+total_sched_time+total_wait_time+sleep_time} {end})")
+                else:
+                    start = time.time()
+                    for simname in sims_started:
+                        _simname, cmd_script, step = self.write_script(simname, self.workspace)
+                        LOGGER.debug(f'[{self.type}] submitting script {simname} {cmd_script}')
+                        # submit cmd_script to adapter and append (jobid, simname) to queue
+                        submit_record = self.adapter.submit(step, cmd_script, self.workspace)
+                        if submit_record.submission_code != SubmissionCode.OK:
+                            LOGGER.error(f'[{self.type}] Failed to submit a {self.type} job for simname = {simname}')
+                            # raise Exception('Failed to submit a {} job'.format(self.type))
+
+                        job_id = submit_record.job_identifier
+                        self.running[job_id] = Job(self.type, job_id, [simname])
+                        LOGGER.debug(f'[{self.type}] Started job {job_id} for {simname}')
+
+                    end = time.time() - start
+                    LOGGER.info(f"[{self.type}] Started {len(sims_started)} in {end:.3f} seconds ({len(sims_started)/end} jobs/s)")
             else:
-                # submit sims to write_script, add terminator when write_pool finishes so that submit process knows it's done
-                LOGGER.info(
-                    f'[{self.type}] START_JOB -- Starting Pooled Script Generation [njobs = {len(sims_started)}]')
-                write_pool = Pool(
-                    processes=10,
-                    initializer=sig_ign_and_rename_proc,
-                    initargs=("pool_write_job_tracker",)
-                )
+                # submit sims to write_script,
+                # add terminator when write_pool finishes so that submit process knows it's done
+                LOGGER.info(f'[{self.type}] START_JOB -- Starting Pooled Script Generation [njobs = {len(sims_started)}]')
+                write_pool = Pool(processes=10,
+                                  initializer=sig_ign_and_rename_proc,
+                                  initargs=("pool_write_job_tracker",))
                 for simname, cmd_script, step in write_pool.imap_unordered(self.write_script, sims_started):
                     LOGGER.debug(f'[{self.type}] submitting script {simname} {cmd_script}')
                     # submit cmd_script to adapter and append (jobid, simname) to queue
@@ -460,6 +571,7 @@ class JobTracker:
             # ----------------------------------------------------------------------
             LOGGER.info(f'[{self.type}] Started {n_jobs} jobs: {self.__str__()}')
             self.write_history('started', sims_started, 'start_jobs')
+            LOGGER.info(f'[{self.type}] Finished writing')
 
         else:
             LOGGER.info(f"[{self.type}] Scheduling disabled")
@@ -469,18 +581,19 @@ class JobTracker:
                 self.jobCnt += 1  # Probably not needed.
 
         assert self.nrunning_jobs() <= self.max_jobs_total
+        LOGGER.info(f'[{self.type}] returning {n_jobs} {sims_started}')
         return n_jobs, sims_started
 
     # --------------------------------------------------------------------------
-    def write_script(self, sims_chunk: str):
+    def write_script(self, sims_chunk: str, workspace: str):
         """Create a Maestro study step and cmd_script"""
-        assert self.do_scheduling == True
+        # assert self.do_scheduling == True
 
         LOGGER.debug(f"[{self.type}] Creating step for {sims_chunk}...")
         step = self.create_step([sims_chunk])
         LOGGER.debug(f"[{self.type}] Step created: {step}")
         to_be_scheduled, cmd_script, restart_script = \
-            self.adapter.write_script(self.workspace, step)
+            self.adapter.write_script(workspace, step)
 
         return sims_chunk, cmd_script, step
 
@@ -501,18 +614,27 @@ class JobTracker:
         sims_success = []  # simulations that have finished successfully
         sims_failed = []  # simulations that have failed
         sims_continue = []  # simulations that need to be continued
+        sims_stop = [] # Sims that have to stop (not interesting anymore)
         jobs_2_continue = []  # jobs that are still running
         jobs_2_reclaim = []  # jobs that either finished or failed
         jobs_2_cancel = []
 
+        # jobs_updated = self.update_future_jobs()
+
         # Initialize termination status set.
-        term_set = set([SimulationStatus.Failed])
+        term_set = set([SimulationStatus.Failed, SimulationStatus.Stop])
 
         # get job statuses
         jobid_jobs: ItemsView[str, Job] = self.running.items()
 
         LOGGER.debug(f'[{self.type}] Fetching status for {len(self.running)} jobs')
-        job_statuses: List[Tuple[bool, bool]] = self.get_jobs_statuses(list(self.running.keys()))
+        job_statuses: List[Tuple[bool, bool]] = self.get_jobs_statuses(self.running)
+        if job_statuses == []:
+            LOGGER.error(
+                f"[{self.type}] Failed to fetch status. "
+                f"Reasons could be: not able to query the scheduler or Job IDs do not exist."
+            )
+            return [], []
 
         # get sim statuses
         '''
@@ -549,6 +671,13 @@ class JobTracker:
                 # TODO: this assumes chunk_size = 1
                 sim_status = [SimulationStatus.Failed]
 
+                # We set failure flag for timedout simulation
+                flags = Naming.status_flags(self.type)
+                flag_failure = flags[1]
+                for s in job.sims:
+                    flag_path = self.dir_sim(job.sims)[0]
+                    LOGGER.info(f"[{job.sims}] Set {flag_failure} for timedout simulation {flag_path} ({self.dir_sim(job.sims)})")
+                    self.iointerface.send_signal(flag_path, flag_failure)
             else:
                 # check the status of all sims in the bundle
                 #       will continue only if status == unknown (not success/failed)
@@ -558,6 +687,12 @@ class JobTracker:
             # if the job is still running and at least one sim needs to continue
             sims_continue_any = any([s == SimulationStatus.Unknown for s in sim_status])
             sims_term_cancel = all([s in term_set for s in sim_status])
+
+            LOGGER.debug(
+                '[JOBID %s, JOB %s] : Status: %s\t| Running? %s\t| Timedout? %s\t| Continue? %s\t| Cancel? %s\t|',
+                jobid, job, str(sim_status), str(job_is_running), str(job_is_tout), str(sims_continue_any),
+                str(sims_term_cancel))
+
             if job_is_running and sims_continue_any:
                 jobs_2_continue.append(jobid)
                 continue
@@ -565,23 +700,21 @@ class JobTracker:
             # If the job is running but all underlying simulations have failed
             # reap the job and reclaim the resources.
             jobs_2_reclaim.append(jobid)
-            if job_is_running and sims_term_cancel:
+            if job_is_running and (sims_term_cancel):
                 # otherwise, need to reclaim the resources from this job
                 jobs_2_cancel.append(jobid)
 
-            LOGGER.debug(
-                '[JOBID %s, JOB %s] : Status: %s\t| Running? %s\t| Timedout? %s\t| Continue? %s\t| Cancel? %s\t|',
-                jobid, job, str(sim_status), str(job_is_running), str(job_is_tout), str(sims_continue_any),
-                str(sims_term_cancel))
             # split the simulations of this job based on status
-            _ss, _sf, _sc = self.split_sims_on_status(job.sims, sim_status)
+            _ss, _sf, _sc, _st = self.split_sims_on_status(job.sims, sim_status)
             LOGGER.debug(f'[{self.type}] sims: success = {_ss}')
             LOGGER.debug(f'[{self.type}] sims: failed = {_sf}')
             LOGGER.debug(f'[{self.type}] sims: continue = {_sc}')
+            LOGGER.debug(f'[{self.type}] sims: stop = {_st}')
 
             sims_success.extend(_ss)
             sims_failed.extend(_sf)
             sims_continue.extend(_sc)
+            sims_stop.extend(_st)
 
         # ----------------------------------------------------------------------
         njobs_continue = len(jobs_2_continue)
@@ -590,38 +723,43 @@ class JobTracker:
         nsims_success = len(sims_success)
         nsims_failed = len(sims_failed)
         nsims_continue = len(sims_continue)
+        nsims_stop = len(sims_stop)
 
         LOGGER.info(f'[{self.type}] processed all jobs. '
-                    f'(#jobs: continue = {njobs_continue}, reclaim = {njobs_reclaim}, cancel = {njobs_continue}), '
-                    f'(#sims: success = {nsims_success}, failed = {nsims_failed}, continue = {nsims_continue})')
+                    f'(#jobs: continue = {njobs_continue}, reclaim = {njobs_reclaim}, cancel = {njobs_cancel}), '
+                    f'(#sims: success = {nsims_success}, failed = {nsims_failed}, continue = {nsims_continue}, stop = {nsims_stop})')
 
         self.write_history('found_success', sims_success, 'update')
         self.write_history('found_failed', sims_failed, 'update')
+        self.write_history('found_stop', sims_stop, 'update')
 
         assert njobs_continue + njobs_reclaim == len(self.running)
-        assert nsims_success + nsims_failed + nsims_continue == self.bundle_size * njobs_reclaim
+        assert nsims_success + nsims_failed + nsims_continue + nsims_stop == self.bundle_size * njobs_reclaim
 
         # when working with a bundle size of 1
         # should not have to cancel a job and find a sim to continue
         if self.bundle_size == 1 and nsims_continue > 0:
-            LOGGER.error(
-                f'[{self.type}] Found {nsims_continue} sims to continue for bundle_size = {self.bundle_size}: Looks like these sims ended without a flag: {sims_continue}')
+            LOGGER.warning(
+                f'[{self.type}] Found {nsims_continue} sims to continue for '
+                f'bundle_size = {self.bundle_size}: Looks like these sims ended without a flag: {sims_continue}')
+            # TODO: We need to check that these jobs have actually ended, they could also be SCHEDULED or PENDING
 
         # ----------------------------------------------------------------------
         # kill the jobs and remove from the list
         if jobs_2_cancel:
-            LOGGER.debug(f"[{self.type}] Cancelling simulations (njobs_cancel) = {njobs_cancel}")
+            LOGGER.info(f"[{self.type}] Cancelling simulations (njobs_cancel) = {njobs_cancel}")
             self.cancel_jobs(jobs_2_cancel)
 
         if njobs_reclaim > 0:
-            LOGGER.debug(f'[{self.type}] >> TEST: reclaiming jobs {jobs_2_reclaim} from running {self.running.keys()}')
+            LOGGER.debug(f'[{self.type}] Reclaiming jobs {jobs_2_reclaim} from running {self.running.keys()}')
             for j in jobs_2_reclaim:
-                self.running.pop(j)
-            LOGGER.debug(f'[{self.type}] >> TEST: after reclaiming running {self.running.keys()}')
+                if j in self.running:
+                    self.running.pop(j)
 
         # requeue the sims that need to be continued (their job has ended)
         if nsims_continue > 0:
             self.add_to_queue(sims_continue, prepend=True)
+            LOGGER.debug(f"[{job}] requeued nsims={nsims_continue} => {sims_continue}")
 
         # ----------------------------------------------------------------------
         LOGGER.info(self.__str__())
@@ -726,10 +864,11 @@ class JobTracker:
         # ----------------------------------------------------------------------
 
         # check the status of these sims
-        sims_success, sims_failed, sims_continue = self.split_sims_on_status(sims_not_restored)
+        sims_success, sims_failed, sims_continue, sims_stop = self.split_sims_on_status(sims_not_restored)
 
         self.write_history('found_success', sims_success, 'restore')
         self.write_history('found_failed', sims_failed, 'restore')
+        self.write_history('found_stop', sims_stop, 'restore')
 
         # now, add them to the queue
         LOGGER.info(f'[{self.type}] Queuing {len(sims_continue)} previously-running sims')
@@ -781,8 +920,8 @@ class JobTracker:
         if self.ngpus > 0:
             step.run['gpus'] = self.ngpus
 
-        if self.use_broker:
-            step.run['use_broker'] = self.use_broker
+        if self.nested:
+            step.run['nested'] = self.nested
 
         wrapper = self.config.get('wrapper', None)
         if wrapper:
@@ -816,7 +955,7 @@ class JobTracker:
         LOGGER.error(f'[{self.type}] Unknown error: {retcode}')
         return False
 
-    def get_jobs_statuses(self, jobIds: List[str]) -> List[Tuple[bool, bool]]:
+    def get_jobs_statuses(self, jobs: Dict[str, Job]) -> List[Tuple[bool, bool]]:
         """
         Check status of this job via Maestro
         * False: if job is finished or failed (i.e., workflow can reclaim resources)
@@ -851,11 +990,17 @@ class JobTracker:
                           State.HWFAILURE, State.TIMEDOUT, State.CANCELLED,
                           State.UNKNOWN, State.NOTFOUND}
 
+        # Update future before checking
+        # jobs_updated = self.update_future_jobs()
+
         # now check the status via maestro
+        jobIds = list(jobs.keys())
         retcode, job_status = self.adapter.check_jobs(jobIds)
+        for jobId in jobIds:
+            LOGGER.debug(f'{jobs[jobId]} => {job_status[jobId]}')
 
         if retcode in invalid_codes:
-            LOGGER.debug(f'[{self.type}] Returning due to invalid code. [Code={retcode} : jobid={jobIds}]')
+            LOGGER.warning(f'[{self.type}] Returning due to invalid code. [Code={retcode} : jobid={jobIds}]')
             return []
 
         return [(job_status[jobId] not in invalid_states, job_status[jobId] == State.TIMEDOUT) for jobId in jobIds]
@@ -899,12 +1044,15 @@ class JobTracker:
                           State.HWFAILURE, State.TIMEDOUT, State.CANCELLED,
                           State.UNKNOWN, State.NOTFOUND}
 
+        # Update future before checking
+        # jobs_updated = self.update_future_jobs()
+
         # now check the status via maestro
         retcode, job_status = self.adapter.check_jobs([jobId])
-        LOGGER.debug(f'[{self.type}] Received job status from Maestro: retcode = {retcode}, state = {job_status}')
+        LOGGER.debug(f'[{self.type}] Received job status from Maestro: retcode = {retcode}, jobId = {jobId}, state = {job_status}')
 
         if retcode in invalid_codes:
-            LOGGER.debug(f'[{self.type}] Returning due to invalid code. [Code={retcode} : jobid={jobId}]')
+            LOGGER.warning(f'[{self.type}] Returning due to invalid code. [Code={retcode} : jobid={jobId}]')
             return False, False
 
         return job_status[jobId] not in invalid_states, job_status[jobId] == State.TIMEDOUT

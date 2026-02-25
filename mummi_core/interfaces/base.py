@@ -1,6 +1,14 @@
-# Copyright (c) 2021, Lawrence Livermore National Security, LLC. All rights reserved. LLNL-CODE-827197.
-# This work was produced at the Lawrence Livermore National Laboratory (LLNL) under contract no. DE-AC52-07NA27344 (Contract 44) between the U.S. Department of Energy (DOE) and Lawrence Livermore National Security, LLC (LLNS) for the operation of LLNL.  See license for disclaimers, notice of U.S. Government Rights and license terms and conditions.
-# ------------------------------------------------------------------------------
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# -----------------------------------------------------------------------------
+# Copyright (c) 2021, Lawrence Livermore National Security, LLC. All rights
+# reserved. LLNL-CODE-827197. This work was produced at the Lawrence Livermore
+# National Laboratory (LLNL) under contract no. DE-AC52-07NA27344 (Contract 44)
+# between the U.S. Department of Energy (DOE) and Lawrence Livermore National
+# Security, LLC (LLNS) for the operation of LLNL.  See license for disclaimers,
+# notice of U.S. Government Rights and license terms and conditions.
+# -----------------------------------------------------------------------------
+
 import io
 import logging
 import os
@@ -9,6 +17,7 @@ import yaml
 import time
 import datetime
 import shutil
+import glob
 from abc import ABC, abstractmethod
 from .default_functions import write_npz, read_npz
 
@@ -205,10 +214,10 @@ class IO_Base(ABC):
                 file = f'{file}.{suffix}'
 
             shutil.move(filename, file)
-            LOGGER.info(f'Saved backup ({file})')
+            LOGGER.debug(f'Saved backup ({file})')
 
     @classmethod
-    def save_checkpoint(cls, filename, data, use_tstamp=False):
+    def save_checkpoint(cls, filename, data, use_tstamp=False, cleanup=False, keep_checkpoint=2):
 
         # write new!
         ts = time.time()
@@ -218,6 +227,20 @@ class IO_Base(ABC):
         cls.take_backup(filename, suffix)
 
         st = st.strftime('%Y-%m-%d %H:%M:%S')
+
+        keep_checkpoint = max(1, keep_checkpoint) # Make sure we keep at least one checkpoint
+
+        if use_tstamp and cleanup:
+            chk1 = datetime.datetime.strptime(suffix, '%Y%m%d_%H%M%S')
+            root_directory = '/'.join(filename.split('/')[:-1])
+            filename_pattern = filename.split(".")
+            # we want to match all the checkpoint files that looks like that
+            to_match = f"{filename_pattern[0]}.{filename_pattern[1]}.*"
+            ckpt_files = sorted(glob.glob(to_match), key=lambda f: datetime.datetime.strptime(f.split('.')[-1], "%Y%m%d_%H%M%S"))
+            for f in ckpt_files[:-keep_checkpoint]:
+                LOGGER.debug(f"Removing checkpoint file {f}")
+                os.remove(f)
+
         with open(filename, 'w') as outfile:
             data['ts'] = st
             yaml.dump(data, outfile, default_flow_style=False)
@@ -248,14 +271,26 @@ class IO_Base(ABC):
     @classmethod
     def send_signal(cls, path, key):
         file = os.path.join(path, key)
-        with open(file, 'w') as fp:
-            fp.write('1')
+        if cls.test_signal(path, key):
+            LOGGER.warning(f'Signal ({file}) already exist')
+            return
+        if not os.path.isdir(path):
+            os.makedirs(path, exist_ok=True)
+        try:
+            with open(file, 'w') as fp:
+                fp.write('1')
+        except Exception as e:
+            LOGGER.error(f'path={path} and key={key}: {e}')
         LOGGER.info(f'Saved signal ({file})')
 
     @classmethod
     def test_signal(cls, path, key):
+        signal = os.path.join(path, key)
         if key == '':
+            LOGGER.debug(f"Did not find signal {signal}")
             return False
-        return os.path.isfile(os.path.join(path, key))
+        if os.path.isfile(signal):
+            LOGGER.debug(f"Found signal {signal}")
+        return os.path.isfile(signal)
 
 # --------------------------------------------------------------------------

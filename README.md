@@ -1,5 +1,5 @@
-## MuMMI Core v1.0
-#### Released: Jun 29, 2022
+## MuMMI Core v2.0
+#### Released: Feb 24, 2026
 
 
 <b>MuMMI Core</b> is the underlying infrastructure and generalizable component of the <b>MuMMI framework</b>,
@@ -97,5 +97,6 @@ Contributions may be made through pull requests and/or issues on github.
 ### License
 
 MuMMI Core is distributed under the terms of the MIT License.
+SPDX-License-Identifier: MIT
 
-Livermore Release Number: LLNL-CODE-827197
+Livermore Release Number: LLNL-CODE-2015414
