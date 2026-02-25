@@ -1,36 +1,36 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it the Mini-MuMMI paper as below."
-type: article
+type: software
 title: "Machine Learning-driven Multiscale MD Workflows: The Mini-MuMMI Experience"
 authors:
-  - family-names: Pottier
+  - family-names: "Pottier"
     given-names: "Loïc"
     orcid: "https://orcid.org/0000-0002-7681-3521"
-  - family-names: Georgouli
-    given-names: Konstantia
+  - family-names: "Georgouli"
+    given-names: "Konstantia"
     orcid: "https://orcid.org/0000-0002-3903-5812"
-  - family-names: Carpenter
+  - family-names: "Carpenter"
     given-names: "Timothy S."
     orcid: "https://orcid.org/0000-0001-7848-9983"
-  - family-names: Aydin
-    given-names: Fikret
+  - family-names: "Aydin"
+    given-names: "Fikret"
     orcid: "https://orcid.org/0000-0003-3237-8043"
-  - family-names: Tempkin
+  - family-names: "Tempkin"
     given-names: "Jeremy O. B."
     orcid: "https://orcid.org/0000-0002-1602-6649"
-  - family-names: Nissley
+  - family-names: "Nissley"
     given-names: "Dwight V."
     orcid: "https://orcid.org/0000-0001-7523-116X"
-  - family-names: Streitz
+  - family-names: "Streitz"
     given-names: "Frederick H."
     orcid: "https://orcid.org/0000-0003-0924-037X"
-  - family-names: Scogland
+  - family-names: "Scogland"
     given-names: "Thomas R. W."
     orcid: "https://orcid.org/0000-0001-7234-5743"
-  - family-names: Bremer
-    given-names: Peer-Timo
+  - family-names: "Bremer"
+    given-names: "Peer-Timo"
     orcid: "https://orcid.org/0000-0003-4107-3831"
-  - family-names: Lightstone
+  - family-names: "Lightstone"
     given-names: "Felice C."
     orcid: "https://orcid.org/0000-0003-1465-426X"
   - family-names: "Ingólfsson"
