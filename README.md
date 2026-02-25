@@ -5,12 +5,13 @@
 <b>MuMMI Core</b> is the underlying infrastructure and generalizable component of the <b>MuMMI framework</b>,
 which facilitates the coordination of massively parallel multiscale simulations.
 
-MuMMI was developed as part of the <b><i>Pilot2</b></i> project of the
-[Joint Design of Advanced Computing Solutions for Cancer](https://cbiit.cancer.gov/ncip/hpc/jdacs4c)
+MuMMI was developed as part of the **Pilot2** project of the
+[Joint Design of Advanced Computing Solutions for Cancer](https://cbiit.cancer.gov/ncip/hpc/jdacs4c) and the [ADMIRRAL](https://computational.cancer.gov/about/admirral) project both
 funded jointly by the [Department of Energy](http://www.doe.gov) (DOE) and the [National Cancer Institute](http://www.cancer.gov) (NCI).
+ADMIRRAL is the follow-up project for Pilot 2.
 
 
-The Pilot 2 project focuses on developing multiscale simulation models for
+The ADMIRRAL/Pilot 2 project focuses on developing multiscale simulation models for
 understanding the interactions of the lipid plasma membrane with the [RAS and RAF](https://www.cancer.gov/research/key-initiatives/ras)
 proteins. The broad computational tool development aims of this pilot are:
 * Developing scalable multi-scale molecular dynamics code that will automatically switch between continuum, coarse-grained and all-atom simulations.
@@ -45,9 +46,8 @@ citations to relevant papers.
   [doi:10.1145/3295500.3356197](https://doi.org/10.1145/3295500.3356197).
   <br/><b><i>Best Paper at SC 2019</i></b>.
 
-
 #### Requirements
-- Python 3.7
+- Python 3.11
 - A compatible MuMMI application (e.g. MuMMI RAS)
 
 #### Installation
@@ -56,6 +56,8 @@ git clone https://github.com/mummi-framework/mummi-core
 cd mummi-core
 pip3 install .
 ```
+
+Note that MuMMI leverages several software not included in this repository such as Flux for scheduling, GROMACS for molecular dynamics simulation etc. To get started with MuMMI we recommand the reading of this paper: [Machine Learning-driven Multiscale MD Workflows: The Mini-MuMMI Experience](https://arxiv.org/abs/2507.07352).
 
 #### Usage
 
@@ -78,12 +80,19 @@ to leverage the utilities provided here.
 MuMMI Core was developed at Lawrence Livermore National Laboratory
 and the main contributors are:
 
-Harsh Bhatia, Joseph Y Moon, Francesco Di Natale, Joseph R Chavez,
-James Glosli, and Helgi I Ingólfsson.
+- Loïc Pottier
+- Jeremy Tempkin
+- Harsh Bhatia
+- Joseph Y Moon
+- Francesco Di Natale
+- Joseph R Chavez
+- James Glosli
+- Helgi I Ingólfsson.
 
-MuMMI was funded by the Pilot 2 project led by Dr. Fred Streitz (DOE) and
+MuMMI was initially funded by the Pilot 2 project led by Dr. Fred Streitz (DOE) and
 Dr. Dwight Nissley (NIH). We acknowledge contributions from the entire
-Pilot 2 team.
+Pilot 2 team. After Pilot 2 ended, MuMMI was funded as part of the
+Artificial-Intelligence-Driven Multiscale Investigation of the RAS/RAF Activation Lifecycle ([ADMIRRAL](https://computational.cancer.gov/about/admirral)) project led by Dr. Fred Streitz (DOE) and Dr. Dwight Nissley (NIH).
 
 This work was performed under the auspices of the U.S. Department
 of Energy (DOE) by Lawrence Livermore National Laboratory under Contract DE-AC52-07NA27344.
@@ -97,6 +106,8 @@ Contributions may be made through pull requests and/or issues on github.
 ### License
 
 MuMMI Core is distributed under the terms of the MIT License.
+All new contributions must be made under the MIT license.
+
 SPDX-License-Identifier: MIT
 
-Livermore Release Number: LLNL-CODE-2015414
+LLNL-CODE-2015414
